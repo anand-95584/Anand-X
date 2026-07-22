@@ -1,0 +1,6 @@
+{
+  "name": "Free Fire 2019 Classic",
+  "description": "3D Battle Royale action game inspired by Free Fire 2019 featuring Bermuda map, Gloo Walls, iconic weapons, character abilities, air drops, safe zones, and vehicles.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

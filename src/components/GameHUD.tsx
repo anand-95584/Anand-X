@@ -1,0 +1,616 @@
+import React, { useState, useEffect } from 'react';
+import { Shield, Heart, Zap, Crosshair, Plus, Flame, Navigation, Volume2, VolumeX, Menu, Smile, MessageCircle, Car, Gauge, Disc } from 'lucide-react';
+import { ChatLogEntry, DamageIndicator, KillFeedEntry, PlayerState, VehicleEntity, Weapon } from '../types/game';
+import { CHARACTERS } from '../utils/constants';
+import { soundManager } from '../utils/sound';
+import { EmoteWheel } from './EmoteWheel';
+import { EmoteItem, QuickChatMessage } from '../utils/emotes';
+
+interface GameHUDProps {
+  playerState: PlayerState;
+  setPlayerState: React.Dispatch<React.SetStateAction<PlayerState>>;
+  aliveCount: number;
+  totalCount: number;
+  killFeed: KillFeedEntry[];
+  chatLogs: ChatLogEntry[];
+  damageIndicators: DamageIndicator[];
+  vehicles: VehicleEntity[];
+  safeZone: { radius: number; centerX: number; centerZ: number; isShrinking: boolean };
+  onPlaceGlooWall: () => void;
+  onUseSkill: () => void;
+  onUseMedkit: () => void;
+  onReload: () => void;
+  onToggleScope: () => void;
+  onToggleMute: () => void;
+  isMuted: boolean;
+  onOpenSettings: () => void;
+  onTriggerEmote: (emote: EmoteItem) => void;
+  onTriggerQuickChat: (msg: QuickChatMessage) => void;
+  onToggleVehicle: (vehicleId?: string) => void;
+  onHonkHorn: () => void;
+  vehicleInputRef: React.MutableRefObject<{ throttle: number; steer: number }>;
+  isShootingRef: React.MutableRefObject<boolean>;
+}
+
+export const GameHUD: React.FC<GameHUDProps> = ({
+  playerState,
+  setPlayerState,
+  aliveCount,
+  totalCount,
+  killFeed,
+  chatLogs,
+  damageIndicators,
+  vehicles,
+  safeZone,
+  onPlaceGlooWall,
+  onUseSkill,
+  onUseMedkit,
+  onReload,
+  onToggleScope,
+  onToggleMute,
+  isMuted,
+  onOpenSettings,
+  onTriggerEmote,
+  onTriggerQuickChat,
+  onToggleVehicle,
+  onHonkHorn,
+  vehicleInputRef,
+  isShootingRef,
+}) => {
+  const [touchFireActive, setTouchFireActive] = useState(false);
+  const [isEmoteWheelOpen, setIsEmoteWheelOpen] = useState(false);
+
+  // Keyboard driving input listener when in vehicle
+  useEffect(() => {
+    const activeKeys = new Set<string>();
+
+    const updateVehicleInputs = () => {
+      let throttle = 0;
+      let steer = 0;
+      if (activeKeys.has('KeyW') || activeKeys.has('ArrowUp')) throttle += 1;
+      if (activeKeys.has('KeyS') || activeKeys.has('ArrowDown')) throttle -= 1;
+      if (activeKeys.has('KeyA') || activeKeys.has('ArrowLeft')) steer += 1;
+      if (activeKeys.has('KeyD') || activeKeys.has('ArrowRight')) steer -= 1;
+
+      vehicleInputRef.current = { throttle, steer };
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'KeyE') {
+        setIsEmoteWheelOpen((prev) => !prev);
+      }
+      if (e.code === 'KeyF') {
+        if (!playerState.inVehicle) {
+          const nearVeh = vehicles.find(
+            (v) => Math.hypot(v.x - playerState.x, v.z - playerState.z) < 6.0
+          );
+          if (nearVeh) onToggleVehicle(nearVeh.id);
+        } else {
+          onToggleVehicle();
+        }
+      }
+      if (e.code === 'KeyH' && playerState.inVehicle) {
+        onHonkHorn();
+      }
+
+      if (playerState.inVehicle) {
+        activeKeys.add(e.code);
+        updateVehicleInputs();
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (playerState.inVehicle) {
+        activeKeys.delete(e.code);
+        updateVehicleInputs();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [playerState.inVehicle, playerState.x, playerState.z, vehicles, onToggleVehicle, onHonkHorn, vehicleInputRef]);
+
+  const nearestVehicle = vehicles.find(
+    (v) => Math.hypot(v.x - playerState.x, v.z - playerState.z) < 6.0
+  );
+  const currentVehicle = vehicles.find((v) => v.id === playerState.vehicleId);
+
+  const character = CHARACTERS.find((c) => c.id === playerState.characterId) || CHARACTERS[0];
+  const currentWeapon: Weapon | null =
+    playerState.currentWeaponIndex === 0
+      ? playerState.primaryWeapon
+      : playerState.currentWeaponIndex === 1
+      ? playerState.secondaryWeapon
+      : playerState.meleeWeapon;
+
+  const currentAmmo = playerState.currentMagAmmo[playerState.currentWeaponIndex];
+
+  // Minimap canvas coords calculation
+  const mapRadius = 55; // HUD minimap size radius
+  const mapScale = 0.35;
+
+  const handlePointerDownShoot = () => {
+    isShootingRef.current = true;
+    setTouchFireActive(true);
+  };
+
+  const handlePointerUpShoot = () => {
+    isShootingRef.current = false;
+    setTouchFireActive(false);
+  };
+
+  const activeEmoteValid = playerState.activeEmote && Date.now() < playerState.activeEmote.expiresAt;
+  const activeChatBubbleValid = playerState.activeChatBubble && Date.now() < playerState.activeChatBubble.expiresAt;
+
+  return (
+    <div className="absolute inset-0 pointer-events-none select-none flex flex-col justify-between p-3 sm:p-5 overflow-hidden font-sans">
+      {/* 1. SNIPER / SCOPE OVERLAY */}
+      {playerState.isScoped && (
+        <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center">
+          {/* Black Scope Mask */}
+          <div className="w-[320px] h-[320px] sm:w-[500px] sm:h-[500px] rounded-full border-[1000px] border-black/90 relative flex items-center justify-center shadow-2xl">
+            {/* Scope Crosshair Lines */}
+            <div className="absolute w-full h-[1.5px] bg-red-500/80" />
+            <div className="absolute h-full w-[1.5px] bg-red-500/80" />
+            <div className="absolute w-12 h-12 rounded-full border border-red-500/60" />
+            <div className="absolute bottom-6 text-[10px] text-amber-400 font-mono tracking-widest bg-black/60 px-2 py-0.5 rounded">
+              RANGE: 120m | AWM 4X
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. TOP HEADER HUD */}
+      <div className="flex justify-between items-start pointer-events-auto z-20">
+        {/* Top Left: Minimap & Sound Controls */}
+        <div className="flex items-center gap-3">
+          {/* Minimap Circle */}
+          <div className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-full border-2 border-amber-500/80 bg-slate-900/90 shadow-lg overflow-hidden flex items-center justify-center">
+            {/* Safe Zone Circle on Minimap */}
+            <div
+              className="absolute rounded-full border border-cyan-400/80 bg-cyan-400/10 transition-all duration-300"
+              style={{
+                width: `${Math.max(10, safeZone.radius * mapScale * 2)}px`,
+                height: `${Math.max(10, safeZone.radius * mapScale * 2)}px`,
+              }}
+            />
+            {/* Player Marker Arrow */}
+            <div
+              className="absolute w-3.5 h-3.5 bg-amber-400 clip-arrow shadow-md transform -translate-x-1/2 -translate-y-1/2 transition-transform"
+              style={{
+                left: '50%',
+                top: '50%',
+                transform: `translate(-50%, -50%) rotate(${playerState.rotationY}rad)`,
+              }}
+            >
+              <Navigation className="w-4 h-4 text-amber-400 fill-amber-400" />
+            </div>
+
+            <div className="absolute top-1 text-[9px] text-amber-400 font-bold bg-black/70 px-1.5 py-0.5 rounded">
+              BERMUDA
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <button
+              onClick={onToggleMute}
+              className="p-2 rounded-full bg-slate-900/80 text-amber-400 hover:bg-amber-500 hover:text-slate-950 border border-amber-500/40 transition"
+              title="Toggle Audio"
+            >
+              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+            </button>
+            <button
+              onClick={onOpenSettings}
+              className="p-2 rounded-full bg-slate-900/80 text-amber-400 hover:bg-amber-500 hover:text-slate-950 border border-amber-500/40 transition"
+              title="Settings"
+            >
+              <Menu className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Top Center: Match Counter & Safe Zone Timer */}
+        <div className="flex flex-col items-center">
+          <div className="flex items-center gap-4 bg-slate-900/90 border border-amber-500/50 px-4 py-1.5 rounded-full shadow-lg">
+            <div className="flex items-center gap-1.5 text-xs sm:text-sm font-black text-amber-400">
+              <span className="text-slate-400">ALIVE</span>
+              <span className="text-white bg-amber-600/60 px-2 py-0.5 rounded">{aliveCount}</span>
+            </div>
+            <div className="w-px h-4 bg-slate-700" />
+            <div className="flex items-center gap-1.5 text-xs sm:text-sm font-black text-red-500">
+              <span className="text-slate-400">KILLS</span>
+              <span className="text-white bg-red-600/60 px-2 py-0.5 rounded">{playerState.kills}</span>
+            </div>
+          </div>
+
+          {/* Safe Zone Alert Badge */}
+          <div className="mt-1.5 px-3 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/40 text-[11px] text-cyan-300 font-bold animate-pulse flex items-center gap-1">
+            <Zap className="w-3 h-3 text-cyan-400 fill-cyan-400" />
+            SAFE ZONE SHRINKING
+          </div>
+        </div>
+
+        {/* Top Right: Free Fire Kill Feed & Chat Feed */}
+        <div className="flex flex-col items-end gap-1.5 max-w-[220px] sm:max-w-[300px]">
+          {/* Kill Feed Entries */}
+          {killFeed.slice(-3).map((feed) => (
+            <div
+              key={feed.id}
+              className="bg-black/80 border-l-2 border-amber-500 px-2.5 py-1 rounded text-[10px] sm:text-xs text-white font-mono flex items-center gap-1.5 shadow-md animate-fade-in"
+            >
+              <span className="text-amber-400 font-bold">{feed.killerName}</span>
+              <span className="text-slate-400">{feed.isHeadshot ? '💥 🎯' : '🔫'}</span>
+              <span className="text-slate-200">{feed.victimName}</span>
+              <span className="text-[9px] text-red-400 bg-red-950/60 px-1 rounded">{feed.weaponName}</span>
+            </div>
+          ))}
+
+          {/* Chat Feed Messages */}
+          {chatLogs.slice(-3).map((chat) => (
+            <div
+              key={chat.id}
+              className="bg-slate-900/90 border-r-2 border-cyan-400 px-2.5 py-1 rounded text-[10px] sm:text-xs text-cyan-200 font-sans flex items-center gap-1.5 shadow-md animate-slide-left"
+            >
+              <span className="text-amber-400 font-bold">{chat.senderName}:</span>
+              {chat.icon && <span>{chat.icon}</span>}
+              <span className="text-white">{chat.text}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 3. CENTER OVERLAY (Floating Damage Numbers, Crosshair, & Floating Chat/Emote Bubbles) */}
+      <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+        {/* Active Player Floating Emote Banner */}
+        {activeEmoteValid && (
+          <div className="absolute top-[28%] bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-slate-950 font-black px-4 py-1.5 rounded-full border-2 border-white shadow-[0_0_25px_rgba(245,158,11,0.8)] animate-bounce text-sm sm:text-base flex items-center gap-2">
+            <span className="text-2xl">{playerState.activeEmote?.icon}</span>
+            <span>{playerState.activeEmote?.name.toUpperCase()}</span>
+          </div>
+        )}
+
+        {/* Active Player Speech Bubble */}
+        {activeChatBubbleValid && (
+          <div className="absolute top-[34%] bg-cyan-950/95 border-2 border-cyan-400 text-cyan-100 font-bold px-4 py-1.5 rounded-2xl shadow-[0_0_20px_rgba(6,182,212,0.6)] animate-pulse text-xs sm:text-sm flex items-center gap-2">
+            <span className="text-xl">{playerState.activeChatBubble?.icon}</span>
+            <span>{playerState.activeChatBubble?.text}</span>
+          </div>
+        )}
+
+        {/* Dynamic Crosshair */}
+        {!playerState.isScoped && (
+          <div className="relative w-8 h-8 flex items-center justify-center">
+            <div className="w-1.5 h-1.5 bg-red-500 rounded-full shadow-sm shadow-red-500" />
+            <div className="absolute w-4 h-0.5 bg-amber-400/80 -top-2" />
+            <div className="absolute w-4 h-0.5 bg-amber-400/80 -bottom-2" />
+            <div className="absolute h-4 w-0.5 bg-amber-400/80 -left-2" />
+            <div className="absolute h-4 w-0.5 bg-amber-400/80 -right-2" />
+          </div>
+        )}
+
+        {/* Damage Indicators */}
+        {damageIndicators.map((dmg) => (
+          <div
+            key={dmg.id}
+            className={`absolute font-black tracking-wider text-lg sm:text-2xl animate-bounce-damage ${
+              dmg.isHeadshot ? 'text-red-500 text-2xl sm:text-3xl font-extrabold drop-shadow-[0_2px_8px_rgba(239,68,68,0.9)]' : 'text-amber-400 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]'
+            }`}
+            style={{
+              transform: 'translate(-50%, -100%)',
+            }}
+          >
+            {dmg.isHeadshot ? `🎯 ${dmg.damage}` : dmg.damage}
+          </div>
+        ))}
+
+        {/* 🚗 VEHICLE APPROACH PROMPT (When on foot near vehicle) */}
+        {nearestVehicle && !playerState.inVehicle && (
+          <div className="absolute bottom-[28%] bg-slate-900/95 border-2 border-amber-400 text-white px-5 py-2.5 rounded-2xl shadow-[0_0_30px_rgba(245,158,11,0.6)] flex items-center gap-3 animate-bounce pointer-events-auto">
+            <span className="text-3xl">🚗</span>
+            <div>
+              <div className="text-xs font-bold text-amber-400">{nearestVehicle.name}</div>
+              <div className="text-sm font-black">ENTER VEHICLE</div>
+            </div>
+            <button
+              onClick={() => onToggleVehicle(nearestVehicle.id)}
+              className="ml-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs shadow transition active:scale-95"
+            >
+              DRIVE [F]
+            </button>
+          </div>
+        )}
+
+        {/* 🏎️ VEHICLE SPEEDOMETER DASHBOARD (When inside vehicle) */}
+        {currentVehicle && playerState.inVehicle && (
+          <div className="absolute top-[18%] bg-slate-900/95 border-2 border-amber-400 text-white px-6 py-3 rounded-2xl shadow-[0_0_35px_rgba(245,158,11,0.7)] flex items-center gap-5 backdrop-blur-md">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center text-amber-400">
+                <Gauge className="w-7 h-7" />
+              </div>
+              <div>
+                <div className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">{currentVehicle.name}</div>
+                <div className="text-2xl font-black font-mono leading-none">
+                  {Math.round(Math.abs(currentVehicle.speed) * 110)} <span className="text-xs text-slate-400">KM/H</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Vehicle HP Bar */}
+            <div className="flex flex-col gap-1 w-32">
+              <div className="flex justify-between text-[10px] font-bold text-slate-300">
+                <span>VEHICLE HP</span>
+                <span className="text-amber-400">{Math.round(currentVehicle.hp)} / {currentVehicle.maxHp}</span>
+              </div>
+              <div className="w-full h-2.5 bg-slate-950 rounded-full border border-amber-500/40 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-all duration-150"
+                  style={{ width: `${(currentVehicle.hp / currentVehicle.maxHp) * 100}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Horn & Exit Quick Buttons */}
+            <div className="flex items-center gap-2 pointer-events-auto">
+              <button
+                onClick={onHonkHorn}
+                className="p-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1 shadow transition active:scale-95"
+                title="Honk Horn [H]"
+              >
+                <Volume2 className="w-4 h-4" /> HORN [H]
+              </button>
+              <button
+                onClick={() => onToggleVehicle()}
+                className="p-2.5 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl text-xs shadow transition active:scale-95"
+                title="Exit Vehicle [F]"
+              >
+                EXIT [F]
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 4. BOTTOM ACTION & CONTROLS HUD */}
+      {playerState.inVehicle ? (
+        /* 🏎️ VEHICLE DRIVING CONTROLS BAR (When driving) */
+        <div className="flex justify-between items-end pointer-events-auto z-20 w-full p-2">
+          {/* Steer Left & Steer Right */}
+          <div className="flex items-center gap-3">
+            <button
+              onPointerDown={() => (vehicleInputRef.current.steer = 1)}
+              onPointerUp={() => (vehicleInputRef.current.steer = 0)}
+              onPointerLeave={() => (vehicleInputRef.current.steer = 0)}
+              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-slate-900/90 border-2 border-amber-400 text-amber-400 font-black text-2xl shadow-2xl flex items-center justify-center active:scale-90 transition"
+            >
+              ◀ A
+            </button>
+            <button
+              onPointerDown={() => (vehicleInputRef.current.steer = -1)}
+              onPointerUp={() => (vehicleInputRef.current.steer = 0)}
+              onPointerLeave={() => (vehicleInputRef.current.steer = 0)}
+              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-slate-900/90 border-2 border-amber-400 text-amber-400 font-black text-2xl shadow-2xl flex items-center justify-center active:scale-90 transition"
+            >
+              D ▶
+            </button>
+          </div>
+
+          {/* Center Horn & Exit Buttons */}
+          <div className="flex items-center gap-3 bg-slate-900/90 border border-amber-500/40 p-2 rounded-2xl">
+            <button
+              onClick={onHonkHorn}
+              className="px-4 py-3 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 shadow active:scale-95 transition"
+            >
+              <Volume2 className="w-5 h-5" /> HONK HORN [H]
+            </button>
+            <button
+              onClick={() => onToggleVehicle()}
+              className="px-4 py-3 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl text-xs shadow active:scale-95 transition"
+            >
+              EXIT VEHICLE [F]
+            </button>
+          </div>
+
+          {/* Drive & Reverse Pedals */}
+          <div className="flex items-center gap-3">
+            <button
+              onPointerDown={() => (vehicleInputRef.current.throttle = -1)}
+              onPointerUp={() => (vehicleInputRef.current.throttle = 0)}
+              onPointerLeave={() => (vehicleInputRef.current.throttle = 0)}
+              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-slate-900/90 border-2 border-red-500 text-red-400 font-black text-xs flex flex-col items-center justify-center active:scale-90 transition"
+            >
+              <span className="text-xl">🛑</span>
+              REVERSE [S]
+            </button>
+            <button
+              onPointerDown={() => (vehicleInputRef.current.throttle = 1)}
+              onPointerUp={() => (vehicleInputRef.current.throttle = 0)}
+              onPointerLeave={() => (vehicleInputRef.current.throttle = 0)}
+              className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-b from-amber-400 to-yellow-600 border-2 border-white text-slate-950 font-black text-xs flex flex-col items-center justify-center active:scale-90 transition shadow-2xl"
+            >
+              <span className="text-2xl">⚡</span>
+              DRIVE [W]
+            </button>
+          </div>
+        </div>
+      ) : (
+        /* STANDARD FOOT CONTROLS HUD */
+      <div className="flex justify-between items-end pointer-events-auto z-20 gap-2">
+        {/* Bottom Left: Touch Joystick / Posture Controls & Gloo Wall Button */}
+        <div className="flex items-end gap-2 sm:gap-3">
+          {/* Emotes & Quick Chat Wheel Button (E) */}
+          <button
+            onClick={() => setIsEmoteWheelOpen(true)}
+            className="group relative w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-b from-amber-400 to-yellow-600 border-2 border-amber-200 shadow-xl flex flex-col items-center justify-center active:scale-95 transition transform hover:brightness-110"
+            title="Open Emotes Wheel (E)"
+          >
+            <Smile className="w-6 h-6 text-slate-950 fill-amber-300" />
+            <span className="text-[10px] font-black text-slate-950 bg-amber-300 px-1 rounded -mt-0.5">
+              EMOTES
+            </span>
+            <span className="absolute -top-2 -right-2 bg-slate-900 text-amber-400 font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center border border-amber-400">
+              E
+            </span>
+          </button>
+
+          {/* Quick Gloo Wall Button (G) */}
+          <button
+            onClick={onPlaceGlooWall}
+            className="group relative w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-b from-cyan-500 to-blue-700 border-2 border-cyan-300 shadow-xl flex flex-col items-center justify-center active:scale-95 transition transform hover:brightness-110"
+          >
+            <span className="text-xl sm:text-2xl">🧊</span>
+            <span className="text-[10px] font-black text-white bg-black/50 px-1 rounded -mt-0.5">
+              GLOO [{playerState.glooWalls}]
+            </span>
+            <span className="absolute -top-2 -right-2 bg-amber-500 text-slate-950 font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center border border-white">
+              G
+            </span>
+          </button>
+
+          {/* Quick Medkit Button (4) */}
+          <button
+            onClick={onUseMedkit}
+            className="group relative w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-b from-emerald-500 to-teal-700 border-2 border-emerald-300 shadow-xl flex flex-col items-center justify-center active:scale-95 transition transform hover:brightness-110"
+          >
+            <Plus className="w-6 h-6 text-white stroke-[3]" />
+            <span className="text-[10px] font-black text-white bg-black/50 px-1 rounded">
+              MED [{playerState.medkits}]
+            </span>
+            <span className="absolute -top-2 -right-2 bg-amber-500 text-slate-950 font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center border border-white">
+              4
+            </span>
+          </button>
+
+          {/* Alok / Character Skill Button (Q) */}
+          <button
+            onClick={onUseSkill}
+            disabled={playerState.skillCooldownRemaining > 0}
+            className={`group relative w-14 h-14 sm:w-16 sm:h-16 rounded-2xl border-2 shadow-xl flex flex-col items-center justify-center active:scale-95 transition transform ${
+              playerState.skillCooldownRemaining > 0
+                ? 'bg-slate-800 border-slate-600 opacity-60'
+                : 'bg-gradient-to-b from-amber-400 to-yellow-600 border-amber-200 hover:brightness-110'
+            }`}
+          >
+            <Flame className="w-6 h-6 text-slate-950 fill-slate-950" />
+            <span className="text-[9px] font-black text-slate-950 bg-amber-300/80 px-1 rounded">
+              {playerState.skillCooldownRemaining > 0
+                ? `${Math.ceil(playerState.skillCooldownRemaining)}s`
+                : character.skillName}
+            </span>
+            <span className="absolute -top-2 -right-2 bg-slate-900 text-amber-400 font-black text-[10px] w-5 h-5 rounded-full flex items-center justify-center border border-amber-400">
+              Q
+            </span>
+          </button>
+        </div>
+
+        {/* Bottom Center: Player Health / EP / Armor Gauge */}
+        <div className="flex flex-col items-center gap-1.5 w-full max-w-xs sm:max-w-md bg-slate-900/90 border border-amber-500/40 p-2.5 rounded-2xl shadow-2xl backdrop-blur-md">
+          {/* Helmet & Vest Status Icons */}
+          <div className="flex items-center justify-between w-full text-xs font-bold px-1 text-slate-300">
+            <div className="flex items-center gap-1">
+              <Shield className="w-4 h-4 text-cyan-400" />
+              <span>VEST LVL 3</span>
+            </div>
+            <div className="flex items-center gap-1 text-amber-400">
+              <Zap className="w-3.5 h-3.5 fill-amber-400" />
+              <span>EP {Math.round(playerState.ep)}/200</span>
+            </div>
+          </div>
+
+          {/* EP Energy Bar */}
+          <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden border border-amber-500/30">
+            <div
+              className="h-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-all duration-200"
+              style={{ width: `${(playerState.ep / playerState.maxEp) * 100}%` }}
+            />
+          </div>
+
+          {/* HP Health Bar */}
+          <div className="relative w-full h-4 bg-slate-950 rounded-full overflow-hidden border border-emerald-500/50 shadow-inner flex items-center">
+            <div
+              className="h-full bg-gradient-to-r from-emerald-500 to-green-400 transition-all duration-200"
+              style={{ width: `${(playerState.hp / playerState.maxHp) * 100}%` }}
+            />
+            <div className="absolute inset-0 flex items-center justify-center text-[10px] font-black text-white drop-shadow">
+              <Heart className="w-3 h-3 text-red-500 fill-red-500 mr-1" />
+              {Math.round(playerState.hp)} / {playerState.maxHp} HP
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Right: Weapon Slots, Reload & Scope / Fire Controls */}
+        <div className="flex items-end gap-2 sm:gap-3">
+          {/* Scope Toggle Button */}
+          <button
+            onClick={onToggleScope}
+            className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl border-2 flex items-center justify-center active:scale-95 transition shadow-lg ${
+              playerState.isScoped
+                ? 'bg-amber-500 border-white text-slate-950'
+                : 'bg-slate-900/90 border-amber-500/50 text-amber-400 hover:bg-amber-500/20'
+            }`}
+          >
+            <Crosshair className="w-6 h-6" />
+          </button>
+
+          {/* Reload Button */}
+          <button
+            onClick={onReload}
+            className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-slate-900/90 border-2 border-amber-500/50 text-amber-400 flex items-center justify-center active:scale-95 transition hover:bg-amber-500/20 shadow-lg"
+          >
+            <span className="font-black text-xs">RELOAD [R]</span>
+          </button>
+
+          {/* Active Weapon Display Box */}
+          <div
+            onClick={() => {
+              setPlayerState((prev) => ({
+                ...prev,
+                currentWeaponIndex: ((prev.currentWeaponIndex + 1) % 3) as 0 | 1 | 2,
+              }));
+              soundManager.playReload();
+            }}
+            className="cursor-pointer bg-slate-900/90 border-2 border-amber-500 p-2.5 rounded-2xl shadow-2xl flex flex-col items-center justify-between min-w-[120px] sm:min-w-[150px] hover:brightness-110 active:scale-95 transition"
+          >
+            <div className="text-[10px] text-amber-400 font-bold tracking-wider">
+              {currentWeapon?.category || 'PRIMARY'}
+            </div>
+            <div className="text-sm sm:text-base font-black text-white tracking-wide">
+              {currentWeapon?.name || 'NO WEAPON'}
+            </div>
+            <div className="flex items-baseline gap-1 mt-1">
+              <span className="text-lg sm:text-xl font-black text-amber-400">{currentAmmo}</span>
+              <span className="text-xs text-slate-400 font-bold">/ 120</span>
+            </div>
+          </div>
+
+          {/* Touch Fire Trigger Button */}
+          <button
+            onPointerDown={handlePointerDownShoot}
+            onPointerUp={handlePointerUpShoot}
+            className={`w-16 h-16 sm:w-20 sm:h-20 rounded-full border-4 shadow-2xl flex items-center justify-center active:scale-90 transition transform ${
+              touchFireActive
+                ? 'bg-red-600 border-yellow-300 scale-95 shadow-red-500/50'
+                : 'bg-gradient-to-b from-red-500 to-amber-600 border-white hover:brightness-110'
+            }`}
+          >
+            <div className="w-8 h-8 rounded-full border-2 border-white flex items-center justify-center bg-black/20">
+              <div className="w-3 h-3 bg-white rounded-full" />
+            </div>
+          </button>
+        </div>
+      </div>
+      )}
+
+      {/* EMOTE WHEEL POPUP MODAL */}
+      <EmoteWheel
+        isOpen={isEmoteWheelOpen}
+        onClose={() => setIsEmoteWheelOpen(false)}
+        onTriggerEmote={onTriggerEmote}
+        onTriggerQuickChat={onTriggerQuickChat}
+      />
+    </div>
+  );
+};
