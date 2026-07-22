@@ -308,146 +308,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     }
   };
 
-  // Helper to create 3D Vehicle Mesh
-  const createVehicleMesh = (vehicle: VehicleEntity): THREE.Group => {
-    const group = new THREE.Group();
-    group.name = `vehicle_${vehicle.id}`;
-
-    const blackMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 });
-    const wheelGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.4, 16);
-    wheelGeo.rotateZ(Math.PI / 2);
-    const glassMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.5, roughness: 0.1 });
-    const headLightMat = new THREE.MeshBasicMaterial({ color: 0xfef08a });
-
-    if (vehicle.type === 'SPORTS_CAR') {
-      const bodyMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, metalness: 0.8, roughness: 0.2 });
-      const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.8, 4.4), bodyMat);
-      body.position.y = 0.6;
-      body.castShadow = true;
-      group.add(body);
-
-      const hood = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.5, 2.0), bodyMat);
-      hood.position.set(0, 0.8, 1.0);
-      group.add(hood);
-
-      const windshield = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.6, 1.2), glassMat);
-      windshield.position.set(0, 1.1, -0.2);
-      group.add(windshield);
-
-      const spoilerWing = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.1, 0.6), bodyMat);
-      spoilerWing.position.set(0, 1.3, -2.0);
-      group.add(spoilerWing);
-      const spoilerPillar1 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.5, 0.2), bodyMat);
-      spoilerPillar1.position.set(-0.8, 1.0, -2.0);
-      group.add(spoilerPillar1);
-      const spoilerPillar2 = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.5, 0.2), bodyMat);
-      spoilerPillar2.position.set(0.8, 1.0, -2.0);
-      group.add(spoilerPillar2);
-
-      [
-        [-1.1, 0.4, 1.4],
-        [1.1, 0.4, 1.4],
-        [-1.1, 0.4, -1.4],
-        [1.1, 0.4, -1.4],
-      ].forEach(([wx, wy, wz]) => {
-        const wheel = new THREE.Mesh(wheelGeo, blackMat);
-        wheel.position.set(wx, wy, wz);
-        wheel.castShadow = true;
-        group.add(wheel);
-      });
-
-      [-0.8, 0.8].forEach((hx) => {
-        const hl = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.1), headLightMat);
-        hl.position.set(hx, 0.7, 2.21);
-        group.add(hl);
-      });
-    } else if (vehicle.type === 'MONSTER_TRUCK') {
-      const bodyMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, metalness: 0.6, roughness: 0.3 });
-      const cab = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.6, 3.8), bodyMat);
-      cab.position.y = 2.0;
-      cab.castShadow = true;
-      group.add(cab);
-
-      const monsterWheelGeo = new THREE.CylinderGeometry(0.9, 0.9, 0.7, 16);
-      monsterWheelGeo.rotateZ(Math.PI / 2);
-      [
-        [-1.5, 0.9, 1.3],
-        [1.5, 0.9, 1.3],
-        [-1.5, 0.9, -1.3],
-        [1.5, 0.9, -1.3],
-      ].forEach(([wx, wy, wz]) => {
-        const wheel = new THREE.Mesh(monsterWheelGeo, blackMat);
-        wheel.position.set(wx, wy, wz);
-        wheel.castShadow = true;
-        group.add(wheel);
-      });
-
-      const metalMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.9 });
-      [
-        [-1.0, 1.2, 1.3],
-        [1.0, 1.2, 1.3],
-        [-1.0, 1.2, -1.3],
-        [1.0, 1.2, -1.3],
-      ].forEach(([sx, sy, sz]) => {
-        const strut = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 1.0), metalMat);
-        strut.position.set(sx, sy, sz);
-        group.add(strut);
-      });
-    } else if (vehicle.type === 'PICKUP') {
-      const bodyMat = new THREE.MeshStandardMaterial({ color: 0xd97706, roughness: 0.5 });
-      const cabin = new THREE.Mesh(new THREE.BoxGeometry(2.3, 1.2, 2.2), bodyMat);
-      cabin.position.set(0, 1.1, 0.8);
-      cabin.castShadow = true;
-      group.add(cabin);
-
-      const bed = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.7, 2.2), bodyMat);
-      bed.position.set(0, 0.85, -1.2);
-      bed.castShadow = true;
-      group.add(bed);
-
-      [
-        [-1.2, 0.5, 1.2],
-        [1.2, 0.5, 1.2],
-        [-1.2, 0.5, -1.2],
-        [1.2, 0.5, -1.2],
-      ].forEach(([wx, wy, wz]) => {
-        const wheel = new THREE.Mesh(wheelGeo, blackMat);
-        wheel.position.set(wx, wy, wz);
-        wheel.castShadow = true;
-        group.add(wheel);
-      });
-    } else {
-      const bodyMat = new THREE.MeshStandardMaterial({ color: 0x4d7c0f, roughness: 0.7 });
-      const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.3, 1.0, 4.0), bodyMat);
-      chassis.position.y = 0.8;
-      chassis.castShadow = true;
-      group.add(chassis);
-
-      const barMat = new THREE.MeshStandardMaterial({ color: 0x1c1917 });
-      const rollBar = new THREE.Mesh(new THREE.BoxGeometry(2.2, 1.2, 0.15), barMat);
-      rollBar.position.set(0, 1.8, -0.2);
-      group.add(rollBar);
-
-      const windshield = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.8, 0.1), glassMat);
-      windshield.position.set(0, 1.6, 1.0);
-      group.add(windshield);
-
-      [
-        [-1.2, 0.5, 1.2],
-        [1.2, 0.5, 1.2],
-        [-1.2, 0.5, -1.2],
-        [1.2, 0.5, -1.2],
-      ].forEach(([wx, wy, wz]) => {
-        const wheel = new THREE.Mesh(wheelGeo, blackMat);
-        wheel.position.set(wx, wy, wz);
-        wheel.castShadow = true;
-        group.add(wheel);
-      });
-    }
-
-    return group;
-  };
-
   // Helper to create 3D Character Mesh
   const createCharacterMesh = (charId: string, isBot: boolean): THREE.Group => {
     const group = new THREE.Group();
@@ -489,77 +349,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     rightLeg.position.set(0.35, 0.7, 0);
     rightLeg.name = 'rightLeg';
     group.add(rightLeg);
-
-    // Arms
-    const armGeo = new THREE.BoxGeometry(0.35, 1.3, 0.35);
-    const leftArm = new THREE.Mesh(armGeo, shirtMat);
-    leftArm.position.set(-0.75, 1.6, 0);
-    leftArm.name = 'leftArm';
-    group.add(leftArm);
-
-    const rightArm = new THREE.Mesh(armGeo, shirtMat);
-    rightArm.position.set(0.75, 1.6, 0);
-    rightArm.name = 'rightArm';
-    group.add(rightArm);
-
-    // Emote Props Group
-    const emoteProps = new THREE.Group();
-    emoteProps.name = 'emoteProps';
-
-    // 1. Throne Mesh
-    const throneGroup = new THREE.Group();
-    throneGroup.name = 'throneMesh';
-    const goldMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.9, roughness: 0.2 });
-    const throneSeat = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.4, 2.2), goldMat);
-    throneSeat.position.y = 0.8;
-    throneGroup.add(throneSeat);
-    const throneBack = new THREE.Mesh(new THREE.BoxGeometry(2.2, 3.0, 0.4), goldMat);
-    throneBack.position.set(0, 2.2, -0.9);
-    throneGroup.add(throneBack);
-    throneGroup.visible = false;
-    emoteProps.add(throneGroup);
-
-    // 2. Booyah Flag Mesh
-    const flagGroup = new THREE.Group();
-    flagGroup.name = 'flagMesh';
-    const poleMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 4.5), goldMat);
-    poleMesh.position.set(1.0, 2.25, 0.5);
-    flagGroup.add(poleMesh);
-    const flagBanner = new THREE.Mesh(
-      new THREE.PlaneGeometry(1.8, 1.2),
-      new THREE.MeshStandardMaterial({ color: 0xef4444, side: THREE.DoubleSide })
-    );
-    flagBanner.position.set(1.8, 3.8, 0.5);
-    flagGroup.add(flagBanner);
-    flagGroup.visible = false;
-    emoteProps.add(flagGroup);
-
-    // 3. Flower Bouquet Mesh
-    const flowerGroup = new THREE.Group();
-    flowerGroup.name = 'flowerMesh';
-    const roseMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.35, 8, 8),
-      new THREE.MeshStandardMaterial({ color: 0xef4444 })
-    );
-    roseMesh.position.set(0, 2.2, 0.9);
-    flowerGroup.add(roseMesh);
-    flowerGroup.visible = false;
-    emoteProps.add(flowerGroup);
-
-    // 4. Heart Halo Mesh
-    const heartGroup = new THREE.Group();
-    heartGroup.name = 'heartMesh';
-    const heartHalo = new THREE.Mesh(
-      new THREE.TorusGeometry(0.8, 0.15, 12, 24),
-      new THREE.MeshBasicMaterial({ color: 0xec4899 })
-    );
-    heartHalo.rotation.x = Math.PI / 2;
-    heartHalo.position.set(0, 3.6, 0);
-    heartGroup.add(heartHalo);
-    heartGroup.visible = false;
-    emoteProps.add(heartGroup);
-
-    group.add(emoteProps);
 
     // Gun in hands
     const gunGroup = new THREE.Group();
@@ -686,76 +475,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         if (playerMeshGroup.current) {
           playerMeshGroup.current.position.set(playerState.x, playerState.y, playerState.z);
           playerMeshGroup.current.rotation.y = playerState.rotationY;
-
-          // ACTIVE 3D EMOTE ANIMATIONS & PROPS
-          if (playerState.activeEmote && Date.now() < playerState.activeEmote.expiresAt) {
-            const group = playerMeshGroup.current;
-            const leftArm = group.getObjectByName('leftArm');
-            const rightArm = group.getObjectByName('rightArm');
-            const emoteProps = group.getObjectByName('emoteProps');
-
-            const throne = emoteProps?.getObjectByName('throneMesh');
-            const flag = emoteProps?.getObjectByName('flagMesh');
-            const flower = emoteProps?.getObjectByName('flowerMesh');
-            const heart = emoteProps?.getObjectByName('heartMesh');
-
-            if (throne) throne.visible = playerState.activeEmote.id === 'THRONE';
-            if (flag) flag.visible = playerState.activeEmote.id === 'BOOYAH';
-            if (flower) flower.visible = playerState.activeEmote.id === 'FLOWER';
-            if (heart) heart.visible = playerState.activeEmote.id === 'HEART';
-
-            const animType = playerState.activeEmote.animationType;
-
-            if (animType === 'LAUGH') {
-              group.position.y = playerState.y + Math.abs(Math.sin(now * 0.02)) * 0.4;
-              if (leftArm && rightArm) {
-                leftArm.rotation.x = -1.2;
-                rightArm.rotation.x = -1.2;
-              }
-            } else if (animType === 'FLOSS_DANCE') {
-              group.rotation.z = Math.sin(now * 0.025) * 0.25;
-              if (leftArm && rightArm) {
-                leftArm.rotation.z = Math.sin(now * 0.025) * 1.2;
-                rightArm.rotation.z = Math.sin(now * 0.025) * 1.2;
-              }
-            } else if (animType === 'MUSCLE_FLEX') {
-              if (leftArm && rightArm) {
-                leftArm.rotation.z = 1.8;
-                rightArm.rotation.z = -1.8;
-                leftArm.rotation.x = -0.5;
-                rightArm.rotation.x = -0.5;
-              }
-            } else if (animType === 'CLAP_HANDS') {
-              if (leftArm && rightArm) {
-                const clap = Math.sin(now * 0.03) * 0.4;
-                leftArm.rotation.y = 1.0 + clap;
-                rightArm.rotation.y = -1.0 - clap;
-              }
-            } else if (animType === 'THRONE_SIT') {
-              group.position.y = playerState.y - 0.4;
-              if (leftArm && rightArm) {
-                leftArm.rotation.x = -0.8;
-                rightArm.rotation.x = -0.8;
-              }
-            } else if (animType === 'HEART_SIGN') {
-              if (heart) {
-                heart.rotation.z += 0.05;
-              }
-            }
-          } else {
-            // Reset transforms & props when emote is inactive
-            const group = playerMeshGroup.current;
-            group.position.y = playerState.y;
-            group.rotation.z = 0;
-            const emoteProps = group.getObjectByName('emoteProps');
-            if (emoteProps) {
-              emoteProps.children.forEach((c) => (c.visible = false));
-            }
-            const leftArm = group.getObjectByName('leftArm');
-            const rightArm = group.getObjectByName('rightArm');
-            if (leftArm) leftArm.rotation.set(0, 0, 0);
-            if (rightArm) rightArm.rotation.set(0, 0, 0);
-          }
         }
 
         // Camera Follow (3rd Person TPS Camera)
@@ -977,21 +696,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         gMesh.rotation.y = wall.rotationY;
       });
 
-      // 5. RENDER VEHICLES
-      vehicles.forEach((veh) => {
-        let vMesh = vehicleMeshesMap.current.get(veh.id);
-        if (!vMesh) {
-          vMesh = createVehicleMesh(veh);
-          scene.add(vMesh);
-          vehicleMeshesMap.current.set(veh.id, vMesh);
-        }
-
-        vMesh.position.set(veh.x, veh.y, veh.z);
-        vMesh.rotation.y = veh.rotationY;
-        vMesh.visible = veh.hp > 0;
-      });
-
-      // 6. UPDATE SAFE ZONE VISUALS
+      // 5. UPDATE SAFE ZONE VISUALS
       if (zoneCylinderMesh.current) {
         zoneCylinderMesh.current.scale.set(safeZone.radius, 1, safeZone.radius);
         zoneCylinderMesh.current.position.set(safeZone.centerX, 50, safeZone.centerZ);
@@ -1006,7 +711,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     return () => {
       if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [playerState, bots, glooWalls, vehicles, safeZone]);
+  }, [playerState, bots, glooWalls, safeZone]);
 
   return (
     <div className="relative w-full h-full overflow-hidden select-none bg-slate-900">

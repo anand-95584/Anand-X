@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   AirDropEntity,
-  ChatLogEntry,
   DamageIndicator,
   GameMode,
   GlooWallEntity,
@@ -14,8 +13,6 @@ import {
 import { CHARACTERS, GLOO_WALL_SKINS, WEAPONS, WEAPON_SKINS } from './utils/constants';
 import { loadPlayerStats, savePlayerStats } from './utils/storage';
 import { soundManager } from './utils/sound';
-import { EmoteItem, QuickChatMessage } from './utils/emotes';
-import { INITIAL_VEHICLES, VEHICLE_CONFIGS } from './utils/vehicles';
 
 import { Lobby } from './components/Lobby';
 import { GameCanvas } from './components/GameCanvas';
@@ -61,13 +58,11 @@ export default function App() {
   const [airDrops, setAirDrops] = useState<AirDropEntity[]>([]);
   const [loots, setLoots] = useState<ItemLoot[]>([]);
   const [killFeed, setKillFeed] = useState<KillFeedEntry[]>([]);
-  const [chatLogs, setChatLogs] = useState<ChatLogEntry[]>([]);
   const [damageIndicators, setDamageIndicators] = useState<DamageIndicator[]>([]);
 
   // Input state
   const keysPressedRef = useRef<Record<string, boolean>>({});
   const isShootingRef = useRef<boolean>(false);
-  const vehicleInputRef = useRef<{ throttle: number; steer: number }>({ throttle: 0, steer: 0 });
 
   // Player Entity State
   const [playerState, setPlayerState] = useState<PlayerState>({
@@ -179,10 +174,8 @@ export default function App() {
     }
 
     setBots(initialBots);
-    setVehicles(INITIAL_VEHICLES);
     setGlooWalls([]);
     setKillFeed([]);
-    setChatLogs([]);
     setDamageIndicators([]);
     setSafeZone({ radius: 180, centerX: 0, centerZ: 0, isShrinking: true });
 
@@ -389,197 +382,6 @@ export default function App() {
     setKillFeed((prev) => [...prev, entry]);
   };
 
-  // Handle Emotes Trigger
-  const handleTriggerEmote = (emote: EmoteItem) => {
-    if (!playerState.isAlive) return;
-    const expiresAt = Date.now() + emote.duration;
-
-    setPlayerState((prev) => ({
-      ...prev,
-      activeEmote: {
-        id: emote.id,
-        name: emote.name,
-        icon: emote.icon,
-        animationType: emote.animationType,
-        particleColor: emote.particleColor,
-        expiresAt,
-      },
-    }));
-
-    const newChat: ChatLogEntry = {
-      id: `chat_${Date.now()}_${Math.random()}`,
-      senderName: playerState.name,
-      isPlayer: true,
-      text: `performed ${emote.name}!`,
-      icon: emote.icon,
-      time: Date.now(),
-    };
-    setChatLogs((prev) => [...prev.slice(-6), newChat]);
-    soundManager.playEmoteSound(emote.id);
-  };
-
-  // Handle Quick Chat Trigger
-  const handleTriggerQuickChat = (msg: QuickChatMessage) => {
-    if (!playerState.isAlive) return;
-    const expiresAt = Date.now() + 3500;
-
-    setPlayerState((prev) => ({
-      ...prev,
-      activeChatBubble: {
-        text: msg.text,
-        icon: msg.icon,
-        expiresAt,
-      },
-    }));
-
-    const newChat: ChatLogEntry = {
-      id: `chat_${Date.now()}_${Math.random()}`,
-      senderName: playerState.name,
-      isPlayer: true,
-      text: msg.text,
-      icon: msg.icon,
-      time: Date.now(),
-    };
-    setChatLogs((prev) => [...prev.slice(-6), newChat]);
-    soundManager.playRadioPing();
-  };
-
-  // Handle Toggle Vehicle Enter / Exit
-  const handleToggleVehicle = (targetVehicleId?: string) => {
-    if (!playerState.isAlive) return;
-
-    if (playerState.inVehicle) {
-      // Exit Vehicle
-      const currentVeh = vehicles.find((v) => v.id === playerState.vehicleId);
-      const exitX = currentVeh ? currentVeh.x + Math.cos(currentVeh.rotationY) * 2.5 : playerState.x;
-      const exitZ = currentVeh ? currentVeh.z - Math.sin(currentVeh.rotationY) * 2.5 : playerState.z;
-
-      setPlayerState((prev) => ({
-        ...prev,
-        inVehicle: false,
-        vehicleId: undefined,
-        x: exitX,
-        z: exitZ,
-      }));
-
-      if (currentVeh) {
-        setVehicles((prev) =>
-          prev.map((v) => (v.id === currentVeh.id ? { ...v, driverId: undefined, isEngineRunning: false, speed: 0 } : v))
-        );
-      }
-    } else if (targetVehicleId) {
-      // Enter Vehicle
-      const targetVeh = vehicles.find((v) => v.id === targetVehicleId);
-      if (targetVeh && targetVeh.hp > 0) {
-        const dist = Math.hypot(targetVeh.x - playerState.x, targetVeh.z - playerState.z);
-        if (dist < 7.0) {
-          setPlayerState((prev) => ({
-            ...prev,
-            inVehicle: true,
-            vehicleId: targetVeh.id,
-            x: targetVeh.x,
-            z: targetVeh.z,
-            rotationY: targetVeh.rotationY,
-          }));
-
-          setVehicles((prev) =>
-            prev.map((v) => (v.id === targetVeh.id ? { ...v, driverId: playerState.id, isEngineRunning: true } : v))
-          );
-
-          soundManager.playVehicleEngine();
-        }
-      }
-    }
-  };
-
-  // Handle Honk Vehicle Horn
-  const handleHonkHorn = () => {
-    soundManager.playVehicleHorn();
-  };
-
-  // Vehicle Movement Physics & Roadkill Loop
-  useEffect(() => {
-    if (!isPlaying || isGameOver || !playerState.inVehicle || !playerState.vehicleId) return;
-
-    const interval = setInterval(() => {
-      setVehicles((prevVehicles) => {
-        return prevVehicles.map((veh) => {
-          if (veh.id !== playerState.vehicleId) return veh;
-
-          // Get driving inputs
-          const throttle = vehicleInputRef.current.throttle;
-          const steer = vehicleInputRef.current.steer;
-
-          let newSpeed = veh.speed;
-          if (throttle > 0) {
-            newSpeed = Math.min(veh.maxSpeed, newSpeed + veh.acceleration);
-          } else if (throttle < 0) {
-            newSpeed = Math.max(-veh.maxSpeed * 0.4, newSpeed - veh.acceleration * 0.8);
-          } else {
-            newSpeed = newSpeed * 0.92; // Friction deceleration
-          }
-
-          if (Math.abs(newSpeed) < 0.01) newSpeed = 0;
-
-          let newRot = veh.rotationY;
-          if (Math.abs(newSpeed) > 0.05) {
-            const config = VEHICLE_CONFIGS[veh.type];
-            const turnRate = config ? config.turnSpeed : 0.04;
-            newRot += steer * turnRate * Math.sign(newSpeed);
-          }
-
-          const newX = veh.x + Math.sin(newRot) * newSpeed;
-          const newZ = veh.z + Math.cos(newRot) * newSpeed;
-
-          // Sync player position to vehicle position
-          setPlayerState((p) => ({
-            ...p,
-            x: newX,
-            z: newZ,
-            rotationY: newRot,
-          }));
-
-          // Roadkill Check (Collision with Bots)
-          if (Math.abs(newSpeed) > 0.3) {
-            setBots((prevBots) =>
-              prevBots.map((bot) => {
-                if (!bot.isAlive) return bot;
-                const d = Math.hypot(bot.x - newX, bot.z - newZ);
-                if (d < 3.8) {
-                  const roadkillDamage = Math.round(Math.abs(newSpeed) * 220);
-                  const newHp = Math.max(0, bot.hp - roadkillDamage);
-                  addDamageIndicator(roadkillDamage, true, bot.x, bot.y + 2, bot.z);
-                  soundManager.playVehicleHorn();
-
-                  if (newHp === 0) {
-                    handleKill(playerState.name, bot.name, veh.name.toUpperCase(), true);
-                    setPlayerState((p) => ({
-                      ...p,
-                      kills: p.kills + 1,
-                      damageDealt: p.damageDealt + bot.hp,
-                    }));
-                  }
-                  return { ...bot, hp: newHp, isAlive: newHp > 0 };
-                }
-                return bot;
-              })
-            );
-          }
-
-          return {
-            ...veh,
-            x: newX,
-            z: newZ,
-            rotationY: newRot,
-            speed: newSpeed,
-          };
-        });
-      });
-    }, 30);
-
-    return () => clearInterval(interval);
-  }, [isPlaying, isGameOver, playerState.inVehicle, playerState.vehicleId]);
-
   // Match Over Event
   const handleGameOver = (booyah: boolean) => {
     if (isGameOver) return;
@@ -642,12 +444,6 @@ export default function App() {
     savePlayerStats(updated);
   };
 
-  const handleEquipBundle = (bundleId: string) => {
-    const updated = { ...stats, selectedBundle: bundleId };
-    setStats(updated);
-    savePlayerStats(updated);
-  };
-
   const aliveBotsCount = bots.filter((b) => b.isAlive).length;
   const aliveTotalCount = aliveBotsCount + (playerState.isAlive ? 1 : 0);
 
@@ -693,9 +489,7 @@ export default function App() {
             aliveCount={aliveTotalCount}
             totalCount={gameMode === 'BATTLE_ROYALE' ? 25 : 8}
             killFeed={killFeed}
-            chatLogs={chatLogs}
             damageIndicators={damageIndicators}
-            vehicles={vehicles}
             safeZone={safeZone}
             onPlaceGlooWall={handlePlaceGlooWall}
             onUseSkill={handleUseSkill}
@@ -708,11 +502,6 @@ export default function App() {
             }}
             isMuted={isMuted}
             onOpenSettings={() => setIsSettingsOpen(true)}
-            onTriggerEmote={handleTriggerEmote}
-            onTriggerQuickChat={handleTriggerQuickChat}
-            onToggleVehicle={handleToggleVehicle}
-            onHonkHorn={handleHonkHorn}
-            vehicleInputRef={vehicleInputRef}
             isShootingRef={isShootingRef}
           />
         </>
@@ -733,7 +522,6 @@ export default function App() {
         stats={stats}
         onEquipSkin={handleEquipSkin}
         onEquipGlooSkin={handleEquipGlooSkin}
-        onEquipBundle={handleEquipBundle}
       />
 
       <StatsModal

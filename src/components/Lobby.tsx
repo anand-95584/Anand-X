@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Play, Shield, Award, Sparkles, User, Crosshair, HelpCircle, Trophy, ShoppingBag, Swords, Shirt } from 'lucide-react';
+import { Play, Shield, Award, Sparkles, User, Crosshair, HelpCircle, Trophy, ShoppingBag, Swords } from 'lucide-react';
 import { GameMode, PlayerStats } from '../types/game';
-import { CHARACTERS, GLOO_WALL_SKINS, OG_BUNDLES, WEAPON_SKINS } from '../utils/constants';
+import { CHARACTERS, GLOO_WALL_SKINS, WEAPON_SKINS } from '../utils/constants';
 import { getRankTitle } from '../utils/storage';
 
 interface LobbyProps {
@@ -26,7 +26,6 @@ export const Lobby: React.FC<LobbyProps> = ({
   const [activeTab, setActiveTab] = useState<'BERMUDA' | 'CLASH_SQUAD' | 'TRAINING'>('BERMUDA');
   
   const currentCharacter = CHARACTERS.find((c) => c.id === stats.selectedCharacter) || CHARACTERS[0];
-  const activeBundle = OG_BUNDLES.find((b) => b.id === (stats.selectedBundle || 'BUNDLE_S1_SAKURA')) || OG_BUNDLES[0];
   const rankInfo = getRankTitle(stats.rankPoints);
 
   const handleModeChange = (mode: GameMode) => {
@@ -121,49 +120,23 @@ export const Lobby: React.FC<LobbyProps> = ({
         {/* Center Character Spotlight Stand */}
         <div className="relative flex flex-col items-center justify-center flex-1 my-2">
           {/* Glowing Aura Ring */}
-          <div
-            className="absolute w-64 h-64 sm:w-80 sm:h-80 rounded-full blur-2xl animate-pulse"
-            style={{ backgroundColor: `${activeBundle.color}30` }}
-          />
+          <div className="absolute w-64 h-64 sm:w-80 sm:h-80 bg-amber-500/20 rounded-full blur-2xl animate-pulse" />
           <div className="relative z-10 flex flex-col items-center">
             {/* 2019 Character Stand Silhouette */}
-            <div className="w-52 h-72 sm:w-64 sm:h-84 bg-gradient-to-b from-slate-900/90 to-slate-950 border-2 rounded-3xl shadow-2xl flex flex-col items-center justify-between p-5 backdrop-blur-md relative overflow-hidden"
-              style={{ borderColor: activeBundle.color }}>
-              
-              {/* Season Badge Header */}
-              <div
-                className="text-[10px] font-black px-3 py-1 rounded-full border shadow uppercase tracking-wider flex items-center gap-1"
-                style={{ color: activeBundle.color, backgroundColor: `${activeBundle.color}20`, borderColor: activeBundle.color }}
-              >
-                <span>{activeBundle.icon}</span>
-                <span>{activeBundle.season}</span>
+            <div className="w-48 h-64 sm:w-60 sm:h-80 bg-gradient-to-b from-slate-800/80 to-slate-950 border-2 border-amber-500/60 rounded-3xl shadow-2xl flex flex-col items-center justify-between p-6 backdrop-blur-md">
+              <div className="text-4xl sm:text-5xl my-auto animate-bounce">
+                {currentCharacter.id === 'ALOK' ? '🎧' : currentCharacter.id === 'KELLY' ? '🏃‍♀️' : '🪖'}
               </div>
-
-              {/* Character + Bundle Icon Stack */}
-              <div className="flex flex-col items-center my-auto">
-                <div className="text-5xl sm:text-6xl animate-bounce filter drop-shadow-[0_0_15px_rgba(255,255,255,0.4)]">
-                  {activeBundle.icon}
-                </div>
-                <div className="text-2xl mt-1 opacity-90">
-                  {currentCharacter.id === 'ALOK' ? '🎧' : currentCharacter.id === 'KELLY' ? '🏃‍♀️' : '🪖'}
-                </div>
-              </div>
-
-              {/* Character & Outfit Name */}
-              <div className="text-center mt-auto w-full">
-                <div className="font-black text-xs text-pink-300 uppercase tracking-widest">{activeBundle.name}</div>
-                <div className="font-black text-xl text-amber-400 tracking-wider leading-tight">{currentCharacter.name}</div>
-                <div className="text-[11px] text-slate-300 font-semibold bg-amber-950/80 px-3 py-1 rounded-full border border-amber-500/40 mt-1.5 flex items-center justify-center gap-1">
-                  <span>✨ {currentCharacter.skillName}</span>
+              <div className="text-center mt-auto">
+                <div className="font-black text-xl text-amber-400 tracking-wider">{currentCharacter.name}</div>
+                <div className="text-xs text-slate-300 font-semibold bg-amber-950/80 px-3 py-1 rounded-full border border-amber-500/40 mt-1">
+                  ✨ Skill: {currentCharacter.skillName}
                 </div>
               </div>
             </div>
 
             {/* Pedestal Base */}
-            <div
-              className="w-60 h-4 rounded-full shadow-lg -mt-2 blur-[1px]"
-              style={{ background: `linear-gradient(to right, ${activeBundle.color}, #f59e0b, ${activeBundle.color})` }}
-            />
+            <div className="w-56 h-4 bg-gradient-to-r from-amber-600 via-yellow-400 to-amber-600 rounded-full shadow-lg -mt-2 blur-[1px]" />
           </div>
         </div>
 

@@ -4,7 +4,7 @@ const STORAGE_KEY = 'FREE_FIRE_2019_STATS';
 
 export const INITIAL_STATS: PlayerStats = {
   gold: 3500,
-  diamonds: 10000,
+  diamonds: 100,
   totalMatches: 0,
   booyahs: 0,
   totalKills: 0,
@@ -12,7 +12,6 @@ export const INITIAL_STATS: PlayerStats = {
   maxKillsInMatch: 0,
   rankPoints: 1250, // Gold II rank
   selectedCharacter: 'ALOK',
-  selectedBundle: 'BUNDLE_S1_SAKURA',
   selectedSkins: {
     AK47: 'AK_FLAMING_DRAGON',
     MP40: 'MP40_POKER',
@@ -23,7 +22,7 @@ export const INITIAL_STATS: PlayerStats = {
     PAN: 'PAN_DEFAULT',
   },
   selectedGlooSkin: 'GLOO_CLASSIC',
-  unlockedCharacters: ['ALOK', 'KELLY', 'ANDREW', 'MAXIM', 'PALOMA', 'HAYATO'],
+  unlockedCharacters: ['KELLY', 'ANDREW', 'ALOK'],
   unlockedSkins: ['AK_FLAMING_DRAGON', 'MP40_POKER', 'SCAR_TITAN', 'GLOO_CLASSIC', 'GLOO_DRAGON'],
 };
 
@@ -31,16 +30,7 @@ export const loadPlayerStats = (): PlayerStats => {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
-      const parsed = JSON.parse(saved);
-      const allCharIds = ['ALOK', 'KELLY', 'ANDREW', 'MAXIM', 'PALOMA', 'HAYATO'];
-      const mergedCharacters = Array.from(new Set([...(parsed.unlockedCharacters || []), ...allCharIds]));
-
-      return {
-        ...INITIAL_STATS,
-        ...parsed,
-        diamonds: Math.max(10000, parsed.diamonds ?? 10000),
-        unlockedCharacters: mergedCharacters as any,
-      };
+      return { ...INITIAL_STATS, ...JSON.parse(saved) };
     }
   } catch (e) {
     console.error('Failed to load stats:', e);

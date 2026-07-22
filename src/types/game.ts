@@ -56,19 +56,6 @@ export interface GlooWallSkin {
   cost: number;
 }
 
-export interface OGBundle {
-  id: string;
-  name: string;
-  season: string; // e.g. "SEASON 1", "SEASON 2", "SEASON 3", "OG RARE"
-  rarity: 'MYTHIC' | 'LEGENDARY' | 'OG_RARE';
-  color: string;
-  glowColor: string;
-  icon: string;
-  description: string;
-  unlocked: boolean;
-  cost: number;
-}
-
 export interface PlayerStats {
   gold: number;
   diamonds: number;
@@ -79,7 +66,6 @@ export interface PlayerStats {
   maxKillsInMatch: number;
   rankPoints: number; // e.g. 1000 = Gold, 2000 = Heroic, 3000 = Grandmaster
   selectedCharacter: CharacterId;
-  selectedBundle?: string;
   selectedSkins: Record<WeaponId, string>;
   selectedGlooSkin: string;
   unlockedCharacters: CharacterId[];
@@ -150,30 +136,6 @@ export interface PlayerState {
   // Kills
   kills: number;
   damageDealt: number;
-
-  // Emotes & Chat
-  activeEmote?: {
-    id: string;
-    name: string;
-    icon: string;
-    animationType: string;
-    particleColor?: string;
-    expiresAt: number;
-  } | null;
-  activeChatBubble?: {
-    text: string;
-    icon: string;
-    expiresAt: number;
-  } | null;
-}
-
-export interface ChatLogEntry {
-  id: string;
-  senderName: string;
-  isPlayer: boolean;
-  text: string;
-  icon?: string;
-  time: number;
 }
 
 export interface GlooWallEntity {
@@ -190,19 +152,15 @@ export interface GlooWallEntity {
 
 export interface VehicleEntity {
   id: string;
-  type: 'JEEP' | 'SPORTS_CAR' | 'MONSTER_TRUCK' | 'PICKUP';
-  name: string;
+  type: 'PICKUP' | 'JEEP';
   x: number;
   y: number;
   z: number;
   rotationY: number;
   speed: number;
-  maxSpeed: number;
-  acceleration: number;
   hp: number;
   maxHp: number;
   driverId?: string;
-  isEngineRunning?: boolean;
 }
 
 export interface AirDropEntity {
